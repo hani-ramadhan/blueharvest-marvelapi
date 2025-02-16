@@ -10,24 +10,24 @@ This project implements an ETL pipeline to collect and analyze Marvel character 
 
 ## Installation
 
-2. Run the initialization script
+1. Run the initialization script
 ```bash
 chmod +x init.sh
 ./init.sh
 ```
 
-3. Set up environment variables
+2. Set up environment variables
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env` and add your Marvel API keys:
 ```
-MARVEL_PUBLIC_KEY=your_public_key_here
-MARVEL_PRIVATE_KEY=your_private_key_here
+export MARVEL_PUBLIC_KEY=your_public_key_here
+export MARVEL_PRIVATE_KEY=your_private_key_here
 ```
 
-4. Start the Docker containers
+3. Start the Docker containers
 ```bash
 docker compose up -d
 ```
@@ -96,14 +96,13 @@ marvel-etl/
 └── .env                 # Environment variables
 ```
 
-## Contributing
+## Future Improvements
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+- Add incremental data loading to reduce API calls
+- Implement error notification system for failed ETL runs
+- Add more visualizations to the Streamlit dashboard
+- Add character search by comic appearance
+- Create a simple data quality report
+- Add basic unit tests
+- Implement basic monitoring for the ETL pipeline
+- Add data backup functionality

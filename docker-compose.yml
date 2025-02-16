@@ -40,8 +40,8 @@ services:
     command:
       - -c
       - |
-        mkdir -p /sources/logs /sources/dags /sources/plugins
-        chown -R airflow:root /sources/{logs,dags,plugins}
+        mkdir -p /logs /dags /plugins
+        chown -R airflow:root /{logs,dags,plugins}
         airflow db init
         airflow users create \
           --username peterparker \

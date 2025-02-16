@@ -1,0 +1,30 @@
+# Airflow and Core Dependencies
+apache-airflow==2.7.1
+pandas==2.1.0
+pyarrow==14.0.1
+requests==2.31.0
+
+# Data Processing
+numpy==1.24.3
+python-dateutil==2.8.2
+
+# Storage and Compression
+fastparquet==2023.8.0  # Optional alternative to pyarrow for Parquet files
+
+# API and Data Validation
+pydantic==2.5.2  # For data validation
+python-dotenv==1.0.0  # For environment variable management
+
+# Visualization and Dashboard
+streamlit==1.29.0
+plotly==5.18.0  # For interactive plots
+altair==5.2.0   # Alternative visualization library
+
+# # Optional but recommended for development
+# black==23.9.1   # Code formatting
+# pylint==3.0.2   # Code linting
+# pytest==7.4.2   # Testing
+
+# # Documentation
+# sphinx==7.2.6   # If you plan to generate documentation
+# mkdocs==1.5.3   # Alternative documentation generator

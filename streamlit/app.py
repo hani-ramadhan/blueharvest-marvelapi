@@ -69,20 +69,23 @@ def load_data():
         }
 
 def main():
+    # Add tabs for main dashboard and quality metrics
+    # tab1, tab2 = st.tabs(["Main Dashboard", "Quality Metrics"])
+    # with tab1:
     # Header
     st.title("🦸‍♂️ Marvel Characters Dashboard")
     
     # Load data
     df, refresh_info = load_data()
     
-    # Show refresh information in sidebar
-    st.sidebar.info(
-        f"Last Updated: {refresh_info['last_update']}\n\n"
-        f"Total Characters: {refresh_info['record_count']}"
-    )
-    
-    if df is not None and len(df) > 0:
-        # Display dashboard content when data is available
+    if df is not None and refresh_info is not None:
+        # Show refresh information
+        st.sidebar.info(
+            f"Last Updated: {refresh_info['last_update']}\n\n"
+            f"Total Characters: {refresh_info['record_count']}"
+        )
+        
+        # Overview metrics
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total Characters", len(df))
@@ -91,7 +94,6 @@ def main():
         with col3:
             st.metric("Max Comics", df['comic_count'].max())
         
-        # Rest of your visualization code...
         # Top Characters by Comic Count
         st.subheader("Top Characters by Comic Appearances")
         top_chars = df.nlargest(10, 'comic_count')
@@ -104,8 +106,52 @@ def main():
         fig.update_layout(xaxis_title="Character", yaxis_title="Number of Comics")
         st.plotly_chart(fig, use_container_width=True)
         
-        # Add other visualizations...
+        # Comic Count Distribution
+        st.subheader("Comic Count Distribution")
+        fig = px.histogram(
+            df,
+            x='comic_count',
+            nbins=50,
+            title="Distribution of Comic Appearances"
+        )
+        fig.update_layout(xaxis_title="Number of Comics", yaxis_title="Number of Characters")
+        st.plotly_chart(fig, use_container_width=True)
         
+        # Character Search
+        st.subheader("Character Search")
+        search_name = st.text_input("Search for a character")
+        if search_name:
+            filtered_df = df[df['name'].str.contains(search_name, case=False)]
+            if not filtered_df.empty:
+                st.dataframe(filtered_df)
+            else:
+                st.info("No characters found matching your search.")
+        
+        # Raw Data View and Download Section
+        st.subheader("Data Download and View")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.checkbox("Show Raw Data"):
+                st.dataframe(df)
+                
+        with col2:
+            # Download full dataset
+            st.download_button(
+                label="Download Full Dataset",
+                data=df.to_csv(index=False),
+                file_name=f"marvel_characters_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+            
+            # Download filtered dataset if search is active
+            if search_name and not filtered_df.empty:
+                st.download_button(
+                    label="Download Filtered Dataset",
+                    data=filtered_df.to_csv(index=False),
+                    file_name=f"marvel_characters_filtered_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv"
+                )
     else:
         # Display a friendly message when no data is available
         st.warning("""

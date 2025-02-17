@@ -103,87 +103,86 @@ class MarvelCharactersETL:
             logger.error(f"Failed to update fetch progress: {str(e)}")
             raise AirflowException(f"Progress update failed: {str(e)}")
 
-    def validate_character_count(self, **context):
+    def validate_character_data(self, **context):
         """
-        Layer 3: Validate character counts from raw data
-        - Reads raw JSON files from the date directory
-        - Verifies comic counts against API
-        - Logs validation results
+        Simplified validation that doesn't require additional API calls:
+        1. Schema validation
+        2. Data type checks
+        3. Value range validations
+        4. Basic data quality checks
         """
         try:
             validation_results = []
             validation_issues = []
             process_date = context['task_instance'].xcom_pull(
-                task_ids='fetch_characters',
+                task_ids='fetch_characters',  # or 'fetch_modified_characters' for incremental
                 key='process_date'
             )
             
-            # Get all batch files for the current date
-            batch_files = sorted(self.raw_dir.glob("batch_*.json"))
+            # Get all batch files
+            batch_files = sorted(self.raw_dir.glob("batch_*.json"))  # or "modified_batch_*.json" for incremental
             logger.info(f"Starting validation for {len(batch_files)} batch files")
+            
+            
+            required_fields = {'id', 'name', 'comics', 'modified'}
             
             for batch_file in batch_files:
                 with open(batch_file, 'r') as f:
                     characters = json.load(f)
-                logger.info(f"Processing {batch_file}")
+                
+                logger.info(f"Validating {len(characters)} characters from {batch_file}")
+                
                 for character in characters:
-                    try:
-                        # Basic validation
-                        if not all(k in character for k in ['id', 'name', 'comics']):
-                            validation_issues.append({
-                                'character_id': character.get('id', 'unknown'),
-                                'name': character.get('name', 'unknown'),
-                                'issue': 'Missing required fields',
-                                'timestamp': datetime.now().isoformat()
-                            })
-                            continue
+                    validation_result = {
+                        'id': character.get('id', 'unknown'),
+                        'name': character.get('name', 'unknown'),
+                        'stored_comic_count': character.get('comics', {}).get('available', 0),
+                        'modified': character.get('modified', ''),
+                        'validation_date': datetime.now().isoformat(),
+                        'is_valid': True,
+                        'issues': []
+                    }
+                    
+                    # 1. Schema Validation
+                    missing_fields = required_fields - set(character.keys())
+                    if missing_fields:
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append(f"Missing required fields: {missing_fields}")
+
+                    # 2. Data Type Validation
+                    if not isinstance(character.get('id'), int):
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append("Invalid ID type")
                         
-                        # Verify comics count
-                        auth_params = self.generate_auth_params()
-                        response = requests.get(
-                            f"{self.base_url}/characters/{character['id']}/comics",
-                            params={**auth_params, 'limit': 1},
-                            timeout=30
-                        )
-                        response.raise_for_status()
-                        
-                        api_comic_count = response.json()['data']['total']
-                        stored_comic_count = character['comics']['available']
-                        
-                        # Record validation result
-                        validation_result = {
-                            'id': character['id'],
-                            'name': character['name'],
-                            'stored_comic_count': stored_comic_count,
-                            'api_comic_count': api_comic_count,
-                            'description': character.get('description', ''),
-                            'modified': character['modified'],
-                            'validation_date': datetime.now().isoformat(),
-                            'is_valid': api_comic_count == stored_comic_count
-                        }
-                        
-                        validation_results.append(validation_result)
-                        
-                        if api_comic_count != stored_comic_count:
-                            validation_issues.append({
-                                'character_id': character['id'],
-                                'name': character['name'],
-                                'stored_count': stored_comic_count,
-                                'api_count': api_comic_count,
-                                'issue': 'Comic count mismatch',
-                                'timestamp': datetime.now().isoformat()
-                            })
-                        
-                        time.sleep(0.1)  # Rate limiting
-                        
-                    except Exception as e:
+                    if not isinstance(character.get('name'), str):
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append("Invalid name type")
+                    
+                    comics = character.get('comics', {})
+                    if not isinstance(comics.get('available'), int):
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append("Invalid comics count type")
+
+                    # 3. Value Range Validation
+                    if character.get('comics', {}).get('available', 0) < 0:
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append("Negative comics count")
+
+                    # 4. Data Quality Checks
+                    if not character.get('name', '').strip():
+                        validation_result['is_valid'] = False
+                        validation_result['issues'].append("Empty name")
+
+                    validation_results.append(validation_result)
+                    
+                    if not validation_result['is_valid']:
                         validation_issues.append({
-                            'character_id': character.get('id', 'unknown'),
-                            'name': character.get('name', 'unknown'),
-                            'issue': str(e),
+                            'character_id': validation_result['id'],
+                            'name': validation_result['name'],
+                            'issues': validation_result['issues'],
                             'timestamp': datetime.now().isoformat()
                         })
-            
+
             # Save validation results
             validation_file = self.logs_dir / "validation_results.json"
             issues_file = self.logs_dir / "validation_issues.json"
@@ -224,6 +223,127 @@ class MarvelCharactersETL:
         except Exception as e:
             logger.error(f"Validation failed: {str(e)}")
             raise AirflowException(str(e))
+    # def validate_character_count(self, **context):
+    #     """
+    #     Layer 3: Validate character counts from raw data
+    #     - Reads raw JSON files from the date directory
+    #     - Verifies comic counts against API
+    #     - Logs validation results
+    #     """
+    #     try:
+    #         validation_results = []
+    #         validation_issues = []
+    #         process_date = context['task_instance'].xcom_pull(
+    #             task_ids='fetch_characters',
+    #             key='process_date'
+    #         )
+            
+    #         # Get all batch files for the current date
+    #         batch_files = sorted(self.raw_dir.glob("batch_*.json"))
+    #         logger.info(f"Starting validation for {len(batch_files)} batch files")
+            
+    #         for batch_file in batch_files:
+    #             with open(batch_file, 'r') as f:
+    #                 characters = json.load(f)
+    #             logger.info(f"Processing {batch_file}")
+    #             for character in characters:
+    #                 try:
+    #                     # Basic validation
+    #                     if not all(k in character for k in ['id', 'name', 'comics']):
+    #                         validation_issues.append({
+    #                             'character_id': character.get('id', 'unknown'),
+    #                             'name': character.get('name', 'unknown'),
+    #                             'issue': 'Missing required fields',
+    #                             'timestamp': datetime.now().isoformat()
+    #                         })
+    #                         continue
+                        
+    #                     # Verify comics count
+    #                     auth_params = self.generate_auth_params()
+    #                     response = requests.get(
+    #                         f"{self.base_url}/characters/{character['id']}/comics",
+    #                         params={**auth_params, 'limit': 1},
+    #                         timeout=30
+    #                     )
+    #                     response.raise_for_status()
+                        
+    #                     api_comic_count = response.json()['data']['total']
+    #                     stored_comic_count = character['comics']['available']
+                        
+    #                     # Record validation result
+    #                     validation_result = {
+    #                         'id': character['id'],
+    #                         'name': character['name'],
+    #                         'stored_comic_count': stored_comic_count,
+    #                         'api_comic_count': api_comic_count,
+    #                         'description': character.get('description', ''),
+    #                         'modified': character['modified'],
+    #                         'validation_date': datetime.now().isoformat(),
+    #                         'is_valid': api_comic_count == stored_comic_count
+    #                     }
+                        
+    #                     validation_results.append(validation_result)
+                        
+    #                     if api_comic_count != stored_comic_count:
+    #                         validation_issues.append({
+    #                             'character_id': character['id'],
+    #                             'name': character['name'],
+    #                             'stored_count': stored_comic_count,
+    #                             'api_count': api_comic_count,
+    #                             'issue': 'Comic count mismatch',
+    #                             'timestamp': datetime.now().isoformat()
+    #                         })
+                        
+    #                     time.sleep(0.1)  # Rate limiting
+                        
+    #                 except Exception as e:
+    #                     validation_issues.append({
+    #                         'character_id': character.get('id', 'unknown'),
+    #                         'name': character.get('name', 'unknown'),
+    #                         'issue': str(e),
+    #                         'timestamp': datetime.now().isoformat()
+    #                     })
+            
+    #         # Save validation results
+    #         validation_file = self.logs_dir / "validation_results.json"
+    #         issues_file = self.logs_dir / "validation_issues.json"
+            
+    #         with open(validation_file, 'w') as f:
+    #             json.dump({
+    #                 'date': process_date,
+    #                 'results': validation_results,
+    #                 'total_validated': len(validation_results),
+    #                 'total_issues': len(validation_issues),
+    #                 'timestamp': datetime.now().isoformat()
+    #             }, f, indent=2)
+            
+    #         with open(issues_file, 'w') as f:
+    #             json.dump({
+    #                 'date': process_date,
+    #                 'issues': validation_issues,
+    #                 'total_issues': len(validation_issues),
+    #                 'timestamp': datetime.now().isoformat()
+    #             }, f, indent=2)
+            
+    #         # Push metadata to XCom
+    #         context['task_instance'].xcom_push(
+    #             key='validated_count',
+    #             value=len(validation_results)
+    #         )
+    #         context['task_instance'].xcom_push(
+    #             key='issues_count',
+    #             value=len(validation_issues)
+    #         )
+            
+    #         logger.info(
+    #             f"Validation completed. Total validated: {len(validation_results)}, "
+    #             f"Issues found: {len(validation_issues)}"
+    #         )
+    #         return len(validation_results)
+            
+    #     except Exception as e:
+    #         logger.error(f"Validation failed: {str(e)}")
+    #         raise AirflowException(str(e))
 
     def process_to_parquet(self, **context):
         """
@@ -249,8 +369,7 @@ class MarvelCharactersETL:
                 character = {
                     'character_id': result['id'],
                     'name': result['name'],
-                    'comic_count': result['api_comic_count'],  # Use verified count
-                    'description': result['description'],
+                    'comic_count': result['stored_comic_count'],  # Use verified count
                     'last_modified': result['modified'],
                     'process_date': process_date,
                     'is_valid': result['is_valid']
@@ -454,8 +573,7 @@ class MarvelCharactersETL:
             dashboard_df = df[[
                 'character_id', 
                 'name', 
-                'comic_count', 
-                'description'
+                'comic_count'
             ]].copy()
             
             # Add any dashboard-specific calculations
@@ -543,7 +661,7 @@ with DAG(
     
     validate_task = PythonOperator(
         task_id='validate_character_count',
-        python_callable=etl.validate_character_count,
+        python_callable=etl.validate_character_data,
         provide_context=True,
     )
     

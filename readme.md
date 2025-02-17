@@ -27,7 +27,12 @@ export MARVEL_PUBLIC_KEY=your_public_key_here
 export MARVEL_PRIVATE_KEY=your_private_key_here
 ```
 
-3. Start the Docker containers
+3. Build the docker images
+```bash
+docker compose build
+```
+
+4. Start the Docker containers
 ```bash
 docker compose up -d
 ```

@@ -240,27 +240,27 @@ class MarvelCharactersIncrementalETL:
                             'timestamp': datetime.now().isoformat()
                         })
 
-            # Save validation results
-            validation_file = self.logs_dir / "validation_results.json"
-            issues_file = self.logs_dir / "validation_issues.json"
             
-            with open(validation_file, 'w') as f:
+            # Save validation results
+            with open(self.logs_dir / "incremental_validation.json", 'w') as f:
                 json.dump({
-                    'date': process_date,
+                    'date': self.current_date,
                     'results': validation_results,
                     'total_validated': len(validation_results),
                     'total_issues': len(validation_issues),
                     'timestamp': datetime.now().isoformat()
                 }, f, indent=2)
             
-            with open(issues_file, 'w') as f:
-                json.dump({
-                    'date': process_date,
-                    'issues': validation_issues,
-                    'total_issues': len(validation_issues),
-                    'timestamp': datetime.now().isoformat()
-                }, f, indent=2)
+            logger.info(
+                f"Validation completed. Total validated: {len(validation_results)}, "
+                f"Issues found: {len(validation_issues)}"
+            )
+            return len(validation_results)
             
+        except Exception as e:
+            logger.error(f"Validation failed: {str(e)}")
+            raise AirflowException(str(e))
+
             # Push metadata to XCom
             context['task_instance'].xcom_push(
                 key='validated_count',
@@ -353,26 +353,6 @@ class MarvelCharactersIncrementalETL:
     #                         'timestamp': datetime.now().isoformat()
     #                     })
             
-    #         # Save validation results
-    #         with open(self.logs_dir / "incremental_validation.json", 'w') as f:
-    #             json.dump({
-    #                 'date': self.current_date,
-    #                 'results': validation_results,
-    #                 'total_validated': len(validation_results),
-    #                 'total_issues': len(validation_issues),
-    #                 'timestamp': datetime.now().isoformat()
-    #             }, f, indent=2)
-            
-    #         logger.info(
-    #             f"Validation completed. Total validated: {len(validation_results)}, "
-    #             f"Issues found: {len(validation_issues)}"
-    #         )
-    #         return len(validation_results)
-            
-    #     except Exception as e:
-    #         logger.error(f"Validation failed: {str(e)}")
-    #         raise AirflowException(str(e))
-
     def update_parquet_data(self, **context):
         """
         Layer 4: Update existing Parquet data with modified characters

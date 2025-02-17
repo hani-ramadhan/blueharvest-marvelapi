@@ -10,3 +10,6 @@ chown -R airflow:root /opt/airflow/data
 chmod -R 775 /opt/airflow/data
 
 echo "Initialized data directories with correct permissions"
+
+mkdir -p logs
+chmod -R 777 logs
